@@ -7,6 +7,7 @@ const Party = require('../models/Party');
 const Transaction = require('../models/Transaction');
 const BranchStock = require('../models/BranchStock');
 const BranchTransfer = require('../models/BranchTransfer');
+const User = require('../models/User');
 
 const getFinancialYearDates = (date) => {
   const d = new Date(date);
@@ -69,7 +70,32 @@ const createOrder = async (req, res) => {
     const orderDate = req.body.date || new Date();
     const invoiceNo = await generateNextInvoiceNo(req.user.companyId, orderDate);
 
-    const order = new Order({ ...req.body, invoiceNo, companyId: req.user.companyId, createdBy: req.user._id });
+    // Resolve Branch Name
+    let sourceBranchName = 'Main Production';
+    if (req.body.sourceBranchId && req.body.sourceBranchId !== 'production') {
+      const branch = await Party.findById(req.body.sourceBranchId);
+      if (branch) sourceBranchName = branch.name;
+    }
+
+    // Resolve Creator Name and Role
+    const creatorRole = req.user.role || 'staff';
+    let createdByName = 'Admin';
+    if (creatorRole !== 'admin') {
+      createdByName = req.user.name || req.user.username || 'Staff';
+      if (req.user.username && req.user.name && req.user.username !== req.user.name) {
+        createdByName = `${req.user.name} (${req.user.username})`;
+      }
+    }
+
+    const order = new Order({ 
+      ...req.body, 
+      invoiceNo, 
+      companyId: req.user.companyId, 
+      createdBy: req.user._id,
+      createdByName,
+      creatorRole,
+      sourceBranchName
+    });
     const savedOrder = await order.save();
     for (const item of savedOrder.items) {
       const jtId = item.juiceType?._id || item.juiceType;
@@ -144,7 +170,7 @@ const createOrder = async (req, res) => {
 
 const getOrders = async (req, res) => {
   try {
-    const { month, year } = req.query;
+    const { month, year, createdBy, branchId } = req.query;
     const query = { companyId: req.user.companyId };
     
     if (month !== undefined && year !== undefined) {
@@ -163,9 +189,28 @@ const getOrders = async (req, res) => {
     }
     if (req.user.role === 'branch_admin' && req.user.branchId) {
       query.sourceBranchId = req.user.branchId;
+    } else {
+      if (branchId) {
+        if (branchId === 'production') {
+          query.$or = [{ sourceBranchId: null }, { sourceBranchId: { $exists: false } }];
+        } else {
+          query.sourceBranchId = branchId;
+        }
+      }
+      if (createdBy) {
+        query.$or = [
+          { createdBy: createdBy },
+          { createdByName: new RegExp(createdBy, 'i') }
+        ];
+      }
     }
 
-    const orders = await Order.find(query).populate('items.juiceType').sort({ date: 1 });
+    const orders = await Order.find(query)
+      .populate('items.juiceType')
+      .populate('createdBy', 'name email role username branchId mobile')
+      .populate('sourceBranchId', 'name shopName mobile')
+      .populate('partyId', 'name shopName mobile address')
+      .sort({ date: 1 });
     res.json(orders);
   } catch (error) { res.status(400).json({ message: error.message }); }
 };
@@ -285,6 +330,10 @@ const updateOrder = async (req, res) => {
             date: date ? new Date(date) : oldOrder.date,
             partyId: req.body.partyId ? new mongoose.Types.ObjectId(req.body.partyId) : null,
             dueAmount: calculatedDueAmount,
+            createdByName: oldOrder.createdByName || req.user.name || 'Admin',
+            creatorRole: oldOrder.creatorRole || req.user.role || 'staff',
+            sourceBranchName: oldOrder.sourceBranchName || 'Main Production',
+            updatedByName: req.user.name || req.user.username || 'Admin',
             updatedAt: new Date()
           }
         }
@@ -477,6 +526,25 @@ const fetchNextInvoiceNo = async (req, res) => {
   }
 };
 
+const getOrderCreators = async (req, res) => {
+  try {
+    const users = await User.find({ companyId: req.user.companyId })
+      .select('name username role email branchId mobile')
+      .populate('branchId', 'name');
+    
+    const distinctNames = await Order.distinct('createdByName', { companyId: req.user.companyId });
+    const distinctBranches = await Order.distinct('sourceBranchName', { companyId: req.user.companyId });
+    
+    res.json({
+      users,
+      distinctNames: distinctNames.filter(Boolean),
+      distinctBranches: distinctBranches.filter(Boolean)
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createOrder,
   getOrders,
@@ -484,5 +552,6 @@ module.exports = {
   updateOrderPayment,
   deleteOrder,
   updateOrder,
-  fetchNextInvoiceNo
+  fetchNextInvoiceNo,
+  getOrderCreators
 };

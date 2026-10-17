@@ -28,6 +28,9 @@ const orderSchema = new mongoose.Schema({
   orderStatus: { type: String, enum: ['pending', 'delivered', 'returned'], default: 'pending' },
   date: { type: Date, default: Date.now },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  createdByName: { type: String },
+  creatorRole: { type: String },
+  sourceBranchName: { type: String },
 }, { timestamps: true });
 
 orderSchema.index({ companyId: 1, createdAt: -1 });

@@ -131,7 +131,11 @@ const getDailyReport = async (req, res) => {
 
         const [productions, orders, bottles, branchTransfers, purchases] = await Promise.all([
             Production.find({ date: dateRange, companyId: req.user.companyId }).sort({ createdAt: -1 }).populate('juiceType'),
-            Order.find({ date: dateRange, companyId: req.user.companyId }).sort({ createdAt: -1 }).populate('items.juiceType'),
+            Order.find({ date: dateRange, companyId: req.user.companyId })
+              .sort({ createdAt: -1 })
+              .populate('items.juiceType')
+              .populate('createdBy', 'name email role username branchId mobile')
+              .populate('sourceBranchId', 'name shopName mobile'),
             BottleInventory.find({ date: dateRange, companyId: req.user.companyId }).sort({ createdAt: -1 }),
             BranchTransfer.find({ date: dateRange, companyId: req.user.companyId }).sort({ createdAt: -1 }).populate('partyId').populate('juiceType'),
             Purchase.find({ date: dateRange, companyId: req.user.companyId }).sort({ createdAt: -1 }).populate('partyId')
