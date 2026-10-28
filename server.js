@@ -4,6 +4,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const connectDB = require('./config/db');
 const path = require('path');
+const fs = require('fs');
 
 // Route imports
 const authRoutes = require('./routes/authRoutes');
@@ -71,11 +72,24 @@ app.use('/api/manage-admins', manageAdminRoutes);
 // Serve static files from the 'dist' folder
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Catch-all middleware to serve index.html for any non-API routes (Next.js SPA)
+// Catch-all middleware to serve page html for any non-API routes (Next.js SPA)
 app.use((req, res) => {
   if (req.originalUrl.startsWith('/api')) {
     return res.status(404).json({ message: 'API route not found' });
   }
+
+  // Support direct subroute requests (e.g., /purchases, /purchases/, /sales)
+  const cleanPath = req.path.replace(/^\/+|\/+$/g, '');
+  const pageWithIndex = path.join(__dirname, 'dist', cleanPath, 'index.html');
+  const pageDirect = path.join(__dirname, 'dist', `${cleanPath}.html`);
+
+  if (cleanPath && fs.existsSync(pageWithIndex)) {
+    return res.sendFile(pageWithIndex);
+  }
+  if (cleanPath && fs.existsSync(pageDirect)) {
+    return res.sendFile(pageDirect);
+  }
+
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
