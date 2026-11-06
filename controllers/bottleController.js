@@ -103,7 +103,16 @@ const addBottlePurchase = async (req, res) => {
       const item = items[i];
       // Find the corresponding file for this item (e.g., billImage_0, billImage_1)
       const file = req.files ? req.files.find(f => f.fieldname === `billImage_${i}`) : null;
-      const billImage = file ? file.path : null;
+      let billImage = null;
+      if (file) {
+        if (file.path && (file.path.startsWith('http://') || file.path.startsWith('https://'))) {
+          billImage = file.path;
+        } else if (file.filename) {
+          billImage = `/uploads/bills/${file.filename}`;
+        } else if (file.path) {
+          billImage = file.path;
+        }
+      }
 
       const purchase = await BottleInventory.create({
         companyId: req.user.companyId,

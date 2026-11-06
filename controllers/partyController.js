@@ -71,7 +71,7 @@ exports.getAllTransactions = async (req, res) => {
   try {
     const { month, year } = req.query;
     let query = {};
-    if (month && year && month !== 'All' && year !== 'All') {
+    if (month !== undefined && year !== undefined && month !== 'All' && year !== 'All') {
       const m = parseInt(month);
       const y = parseInt(year);
       let startDate, endDate;

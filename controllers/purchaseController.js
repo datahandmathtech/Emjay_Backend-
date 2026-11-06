@@ -1,10 +1,13 @@
 const Purchase = require('../models/Purchase');
+const BottleInventory = require('../models/BottleInventory');
 const CashLog = require('../models/CashLog');
 
 exports.getPurchases = async (req, res) => {
   try {
     const { month, year } = req.query;
     let query = { companyId: req.user.companyId };
+    let bottleQuery = { companyId: req.user.companyId, type: 'IN' };
+
     if (month !== undefined && year !== undefined) {
       const m = parseInt(month);
       const y = parseInt(year);
@@ -18,9 +21,38 @@ exports.getPurchases = async (req, res) => {
         endDate = new Date(actualYear, m, 0, 23, 59, 59, 999);
       }
       query.date = { $gte: startDate, $lte: endDate };
+      bottleQuery.date = { $gte: startDate, $lte: endDate };
     }
-    const purchases = await Purchase.find(query).sort({ date: -1 });
-    res.json(purchases);
+
+    const [purchases, bottles] = await Promise.all([
+      Purchase.find(query).sort({ date: -1 }).lean(),
+      BottleInventory.find(bottleQuery).sort({ date: -1 }).lean()
+    ]);
+
+    const formattedBottles = bottles.map(b => ({
+      _id: b._id,
+      isBottleInventory: true,
+      date: b.date,
+      supplier: b.supplierName || 'Bottle Supplier',
+      partyId: b.partyId,
+      items: [{
+        name: `${b.bottleType} Bottles`,
+        category: 'Bottles',
+        quantity: b.quantity,
+        unit: 'Units',
+        numberOfPieces: b.quantity,
+        rate: b.costPerUnit,
+        amount: b.totalCost
+      }],
+      totalCost: b.totalCost,
+      status: b.totalCost > 0 ? 'Paid' : 'Free',
+      description: `Bottle Purchase: ${b.quantity} ${b.bottleType}`,
+      billImage: b.billImage,
+      createdAt: b.createdAt
+    }));
+
+    const combined = [...purchases, ...formattedBottles].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    res.json(combined);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

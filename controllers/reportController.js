@@ -295,9 +295,18 @@ const getGlobalStockReport = async (req, res) => {
     });
 
     let filteredReport = report;
-    if (month && year) {
-      const sDate = new Date(Date.UTC(year, month - 1, 1)).toISOString().split('T')[0];
-      const eDate = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
+    if (month !== undefined && year !== undefined) {
+      const m = parseInt(month);
+      const y = parseInt(year);
+      let sDate, eDate;
+      if (m === 0) {
+        sDate = new Date(Date.UTC(y, 3, 1)).toISOString().split('T')[0];
+        eDate = new Date(Date.UTC(y + 1, 2, 31)).toISOString().split('T')[0];
+      } else {
+        const actualYear = m <= 3 ? y + 1 : y;
+        sDate = new Date(Date.UTC(actualYear, m - 1, 1)).toISOString().split('T')[0];
+        eDate = new Date(Date.UTC(actualYear, m, 0)).toISOString().split('T')[0];
+      }
       
       const beforeEntries = report.filter(r => r.date < sDate);
       const carriedForward = beforeEntries.length > 0 

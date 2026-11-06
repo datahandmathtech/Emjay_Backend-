@@ -69,6 +69,9 @@ app.use('/api/bank-book', bankBookRoutes);
 app.use('/api/branch-stock', branchRoutes);
 app.use('/api/manage-admins', manageAdminRoutes);
 
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Serve static files from the 'dist' folder
 app.use(express.static(path.join(__dirname, 'dist')));
 
